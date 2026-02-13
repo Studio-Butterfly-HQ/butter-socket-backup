@@ -33,31 +33,44 @@ type Hub struct {
 	//company->department->human-agent
 	company map[string]map[string]map[string]bool
 
-	//queues
-	MessageQueue []any
-
+	//queues (pending messages (chat request list for company))
+	PendingChatQueue map[string][]any //for agents map(companyid,[request list])
+	//active queue
+	ActiveChatQueue map[string][]any //agents active chats
 	//Human Agent queue
-	HumanAgentQueue map[string][]any
+	HumanAgentMessageQueue map[string][]any
 
-	//customer queue
-	CustomerQueue map[string][]any
+	//customer queue (customer inbox messages while not active...)
+	CustomerMessageQueue map[string][]any
 
+	CustomerEventQueue map[string][]any
+
+	//customer connection accept flag
+	AcceptedCustomers map[string]*model.HumanAgentPass
 	//thread safety
 	mu sync.RWMutex
 }
 
-// NewHub creates a new Hub instanceinstance
+// NewHub creates a new Hub instance
 func NewHub() *Hub {
 	return &Hub{
-		customers:       make(map[string][]*Client),
-		humanAgents:     make(map[string][]*Client),
-		company:         make(map[string]map[string]map[string]bool),
-		register:        make(chan *Client),
-		unregister:      make(chan *Client),
-		command:         make(chan string),
-		MessageQueue:    make([]any, 0),
-		HumanAgentQueue: make(map[string][]any), // -> used by : {triggers:[message]}
-		CustomerQueue:   make(map[string][]any), // -> used by : {triggers:[message]}
+		customers:   make(map[string][]*Client),
+		humanAgents: make(map[string][]*Client),
+		company:     make(map[string]map[string]map[string]bool),
+
+		register:   make(chan *Client),
+		unregister: make(chan *Client),
+		command:    make(chan string),
+
+		// queues
+		PendingChatQueue:       make(map[string][]any),
+		ActiveChatQueue:        make(map[string][]any),
+		HumanAgentMessageQueue: make(map[string][]any),
+		CustomerMessageQueue:   make(map[string][]any),
+		CustomerEventQueue:     make(map[string][]any),
+
+		// accepted customers
+		AcceptedCustomers: make(map[string]*model.HumanAgentPass),
 	}
 }
 
@@ -69,10 +82,13 @@ func (h *Hub) Run() {
 			if client.Type == "Human-Agent" {
 				h.humanAgents[client.HumanAgentPass.Id] = append(h.humanAgents[client.HumanAgentPass.Id], client)
 				h.registerAgent(client.HumanAgentPass)
-				go h.AgentQueueBorad()
+				go h.BroadcastPendingQueue(client.HumanAgentPass.CompanyId)
+				go h.BroadcastActiveChat(client.HumanAgentPass.Id)
+				go h.BroadcastHumanAgentMessages(client.HumanAgentPass.Id)
 			} else {
 				h.customers[client.CustomerPass.Id] = append(h.customers[client.CustomerPass.Id], client)
-				go h.CustomerQueueBroadcast(client.CustomerPass.Id, client)
+				go h.CustomerMessageQueueBroadcast(client.CustomerPass.Id)
+				go h.BroadcastCustomerEventQueue(client.CustomerPass.Id)
 			}
 			go h.printStats()
 			h.mu.Unlock()
@@ -120,7 +136,6 @@ func (h *Hub) Run() {
 			go h.printStats()
 			h.mu.Unlock()
 		}
-
 	}
 }
 
@@ -225,4 +240,88 @@ func (h *Hub) ShowCustomers() {
 	for k, v := range h.customers {
 		fmt.Println(k, "->", &v)
 	}
+}
+
+func (h *Hub) RemoveFromPending(companyID, customerID string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	pendingList := h.PendingChatQueue[companyID]
+
+	var updatedList []any
+
+	for _, item := range pendingList {
+		conv, ok := item.(*model.ConversationPayload)
+		if !ok {
+			continue
+		}
+
+		if conv.CustomerPayload.Id != customerID {
+			updatedList = append(updatedList, conv)
+		}
+	}
+
+	h.PendingChatQueue[companyID] = updatedList
+}
+
+func (h *Hub) MarkCustomerAccepted(customerID string, agent *model.HumanAgentPass) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.AcceptedCustomers[customerID] = agent
+}
+
+func (h *Hub) AddToActiveChat(agentID string, conversation any) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.ActiveChatQueue[agentID] = append(h.ActiveChatQueue[agentID], conversation)
+}
+
+// AddMessageToCustomerQueue safely appends a message to a customer's event queue
+func (h *Hub) AddEventToCustomerEventQueue(customerID string, msg any) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.CustomerEventQueue == nil {
+		h.CustomerEventQueue = make(map[string][]any)
+	}
+
+	h.CustomerEventQueue[customerID] = append(h.CustomerEventQueue[customerID], msg)
+}
+
+// AddToPendingChat safely adds a conversation to the pending chat queue for a company
+func (h *Hub) AddToPendingChat(companyID string, conversation any) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.PendingChatQueue == nil {
+		h.PendingChatQueue = make(map[string][]any)
+	}
+
+	h.PendingChatQueue[companyID] = append(h.PendingChatQueue[companyID], conversation)
+}
+
+// AddMessageToCustomerQueue safely appends a message to a customer's message queue
+func (h *Hub) AddMessageToCustomerQueue(customerID string, msg any) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.CustomerMessageQueue == nil {
+		h.CustomerMessageQueue = make(map[string][]any)
+	}
+
+	h.CustomerMessageQueue[customerID] = append(h.CustomerMessageQueue[customerID], msg)
+}
+
+// AddMessageToHumanAgentQueue safely appends a message to a human agent's message queue
+func (h *Hub) AddMessageToHumanAgentQueue(agentID string, msg any) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.HumanAgentMessageQueue == nil {
+		h.HumanAgentMessageQueue = make(map[string][]any)
+	}
+
+	h.HumanAgentMessageQueue[agentID] = append(h.HumanAgentMessageQueue[agentID], msg)
 }

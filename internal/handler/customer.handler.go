@@ -22,14 +22,13 @@ func CustomerHandler(h *hub.Hub, w http.ResponseWriter, r *http.Request) {
 	// Create a new client with parameters from query string
 
 	//checking exits.....<<<<()())))
-	exist_customer := h.GetCustomerById(customerId)
 	sosFlag := false
 	flagRevealed := false
 	humanAgentPass := &model.HumanAgentPass{}
-	if len(exist_customer) > 0 {
-		sosFlag = exist_customer[0].SosFlag
-		flagRevealed = exist_customer[0].FlagRevealed
-		humanAgentPass = exist_customer[0].HumanAgentPass
+	if h.AcceptedCustomers[customerId] != nil {
+		flagRevealed = true
+		sosFlag = true
+		humanAgentPass = h.AcceptedCustomers[customerId]
 	}
 	client := &hub.Client{
 		Type: "Customer",
@@ -38,7 +37,7 @@ func CustomerHandler(h *hub.Hub, w http.ResponseWriter, r *http.Request) {
 		Send: make(chan []byte, 256),
 		CustomerPass: &model.CustomerPass{
 			Id:        customerId,
-			CompanyId: "1234567890",
+			CompanyId: "ac0e82ac-1b29-4c91-b553-9d5568ec5faf",
 		},
 		SosFlag:        sosFlag,
 		FlagRevealed:   flagRevealed,

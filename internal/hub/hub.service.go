@@ -14,28 +14,145 @@ func (h *Hub) printStats() {
 	}
 }
 
-func (h *Hub) AgentQueueBorad() {
-	quedMessages, _ := json.Marshal(h.MessageQueue)
-	for i, c := range h.humanAgents {
-		fmt.Println("Agent Id: ", i)
-		for _, v := range c {
-			v.Send <- quedMessages
+func (h *Hub) CustomerMessageQueueBroadcast(customerID string) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	queue, ok := h.CustomerMessageQueue[customerID]
+	if !ok || len(queue) == 0 {
+		return
+	}
+
+	queueBytes, err := json.Marshal(queue)
+	if err != nil {
+		fmt.Println("Error marshaling customer message queue:", err)
+		return
+	}
+
+	devices, ok := h.customers[customerID]
+	if !ok || len(devices) == 0 {
+		return
+	}
+
+	for _, customer := range devices {
+		select {
+		case customer.Send <- queueBytes:
+		default:
+			fmt.Println("Customer send channel full, skipping device")
 		}
 	}
 }
 
-func (h *Hub) CustomerQueueBroadcast(id string, self *Client) {
-	fmt.Println("customer queue broadcast...")
-	fmt.Println(len(h.CustomerQueue))
-	fmt.Println(len(h.CustomerQueue[id]))
-	for _, customer := range h.customers[id] {
-		for _, v := range h.CustomerQueue {
-			queueByte, err := json.Marshal(v)
-			if err != nil {
-				fmt.Println(err)
-				return
+func (h *Hub) BroadcastCustomerEventQueue(customerID string) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	queue, ok := h.CustomerEventQueue[customerID]
+	if !ok || len(queue) == 0 {
+		return
+	}
+
+	queueBytes, err := json.Marshal(queue)
+	if err != nil {
+		fmt.Println("Error marshaling customer event queue:", err)
+		return
+	}
+
+	devices, ok := h.customers[customerID]
+	if !ok || len(devices) == 0 {
+		return
+	}
+
+	for _, customer := range devices {
+		select {
+		case customer.Send <- queueBytes:
+		default:
+			fmt.Println("Customer send channel full, skipping device")
+		}
+	}
+}
+
+func (h *Hub) BroadcastPendingQueue(companyID string) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	queue, ok := h.PendingChatQueue[companyID]
+	if !ok || len(queue) == 0 {
+		return
+	}
+
+	quedMessages, err := json.Marshal(queue)
+	if err != nil {
+		fmt.Println("Error marshaling pending queue:", err)
+		return
+	}
+
+	for agentID, devices := range h.humanAgents {
+		fmt.Println("Broadcasting pending queue to Agent Id:", agentID)
+		for _, device := range devices {
+			select {
+			case device.Send <- quedMessages:
+			default:
+				fmt.Println("Agent send channel full, skipping device")
 			}
-			customer.Send <- queueByte
+		}
+	}
+}
+
+func (h *Hub) BroadcastActiveChat(agentID string) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	queue, ok := h.ActiveChatQueue[agentID]
+	if !ok || len(queue) == 0 {
+		return
+	}
+
+	queueBytes, err := json.Marshal(queue)
+	if err != nil {
+		fmt.Println("Error marshaling active chat queue:", err)
+		return
+	}
+
+	devices, ok := h.humanAgents[agentID]
+	if !ok {
+		return
+	}
+
+	for _, device := range devices {
+		select {
+		case device.Send <- queueBytes:
+		default:
+			fmt.Println("Agent send channel full, skipping device")
+		}
+	}
+}
+
+func (h *Hub) BroadcastHumanAgentMessages(agentID string) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	queue, ok := h.HumanAgentMessageQueue[agentID]
+	if !ok || len(queue) == 0 {
+		return
+	}
+
+	queueBytes, err := json.Marshal(queue)
+	if err != nil {
+		fmt.Println("Error marshaling human agent queue:", err)
+		return
+	}
+
+	devices, ok := h.humanAgents[agentID]
+	if !ok {
+		return
+	}
+
+	for _, device := range devices {
+		select {
+		case device.Send <- queueBytes:
+		default:
+			fmt.Println("Agent send channel full, skipping device")
 		}
 	}
 }

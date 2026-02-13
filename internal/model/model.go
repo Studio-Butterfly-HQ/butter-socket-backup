@@ -67,6 +67,41 @@ type MsgInOut struct {
 	CreatedAt   string `json:"created_at,omitempty"`
 }
 
-// payload for -> trigger: transfer_chat
-type TransferChatPayload struct {
+// payload for -> trigger: transfer_chat ////payload for -> trigger: accept_chat//payload for -> trigger: accept_chat
+type CustomerPayload struct {
+	Id        string `json:"id"`
+	Name      string `json:"name"`
+	Picture   string `json:"picture"`
+	Contact   string `json:"contact"`
+	Source    string `json:"source"`
+	CompanyId string `json:"company_id"`
+}
+
+type ConversationPayload struct {
+	MetaData         `json:"metadata"`
+	Id               string `json:"id"`
+	Status           string `json:"status"`
+	*CustomerPayload `json:"customer"`
+	Summary          string   `json:"summary"`
+	Tags             []string `json:"tags"`
+	Messages         []string `json:"messages"`
+	*AssignedTo      `json:"assigned_to"`
+	*Department      `json:"department"`
+}
+
+type ExceptionPayload struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
+}
+
+type TypingPayload struct {
+	SenderId   string `json:"sender_id"`
+	ReceiverId string `json:"receiver_id,omit_empty"`
+	Typing     bool   `json:"typing"`
+}
+
+type AssignedTo struct {
+	Id         string `json:"id"`
+	Name       string `json:"name"`
+	ProfileUri string `json:"profile_uri"`
 }
