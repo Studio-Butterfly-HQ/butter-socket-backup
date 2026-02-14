@@ -40,8 +40,8 @@ func HumanAgentHandler(h *hub.Hub, w http.ResponseWriter, r *http.Request) {
 	// request to auth service
 	req, err := http.NewRequest(
 		http.MethodGet,
-		//"https://api.studiobutterfly.io/users/socket/essential",
-		"http://localhost:5599/users/socket/essential",
+		"https://api.studiobutterfly.io/users/socket/essential",
+		// "http://localhost:5599/users/socket/essential",
 		bytes.NewBuffer([]byte(`{}`)),
 	)
 	if err != nil {

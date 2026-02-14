@@ -93,7 +93,7 @@ func CustomerHandler(h *hub.Hub, w http.ResponseWriter, r *http.Request) {
 	// Call customer profile API
 	req, err := http.NewRequest(
 		http.MethodGet,
-		"http://localhost:5599/customer/profile",
+		"https://api.studiobutterfly.io/customer/profile",
 		nil,
 	)
 	if err != nil {

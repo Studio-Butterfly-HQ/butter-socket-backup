@@ -210,6 +210,14 @@ func (h *Hub) GetHumanAgents() []*Client {
 	return list
 }
 
+func (h *Hub) GetCustomers() []*Client {
+	var list []*Client
+	for _, v := range h.customers {
+		list = append(list, v...)
+	}
+	return list
+}
+
 func (h *Hub) GetAgentsByDepartment(companyID, deptID string) []string {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -284,6 +292,12 @@ func (h *Hub) MarkCustomerAccepted(customerID string, agent *model.HumanAgentPas
 
 	h.AcceptedCustomers[customerID] = agent
 }
+func (h *Hub) UnMarkCustomerAccepted(customerID string, agent *model.HumanAgentPass) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	delete(h.AcceptedCustomers, customerID)
+}
 
 func (h *Hub) AddToActiveChat(agentID string, conversation any) {
 	h.mu.Lock()
@@ -326,4 +340,135 @@ func (h *Hub) AddMessageToHumanAgentQueue(agentID string, msg any) {
 	}
 
 	h.HumanAgentMessageQueue[agentID] = append(h.HumanAgentMessageQueue[agentID], msg)
+}
+
+// RemoveFromActiveChat removes a specific customer from agent's active chat queue
+func (h *Hub) RemoveFromActiveChat(agentID string, customerID string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	queue, exists := h.ActiveChatQueue[agentID]
+	if !exists {
+		return fmt.Errorf("agent %s not found in active chat queue", agentID)
+	}
+
+	// Filter out conversations for this customer
+	newQueue := []any{}
+	found := false
+	for _, item := range queue {
+		if wsMsg, ok := item.(model.WSMessage); ok {
+			if conversation, ok := wsMsg.Payload.(model.ConversationPayload); ok {
+				if conversation.CustomerPayload != nil && conversation.CustomerPayload.Id != customerID {
+					newQueue = append(newQueue, item)
+				} else {
+					found = true
+				}
+			}
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("customer %s not found in agent %s active chat queue", customerID, agentID)
+	}
+
+	h.ActiveChatQueue[agentID] = newQueue
+
+	// Clean up empty queue
+	if len(h.ActiveChatQueue[agentID]) == 0 {
+		delete(h.ActiveChatQueue, agentID)
+	}
+
+	return nil
+}
+
+// RemoveEventFromCustomerEventQueue removes all events for a customer (reset everything)
+func (h *Hub) RemoveEventFromCustomerEventQueue(customerID string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if _, exists := h.CustomerEventQueue[customerID]; !exists {
+		return fmt.Errorf("customer %s not found in event queue", customerID)
+	}
+
+	delete(h.CustomerEventQueue, customerID)
+	return nil
+}
+
+// RemoveMessageFromCustomerQueue removes messages based on conversationID
+func (h *Hub) RemoveMessageFromCustomerQueue(customerID string, conversationID string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	queue, exists := h.CustomerMessageQueue[customerID]
+	if !exists {
+		return fmt.Errorf("customer %s not found in message queue", customerID)
+	}
+
+	// Filter out messages for this conversation
+	newQueue := []any{}
+	found := false
+	for _, item := range queue {
+		if wsMsg, ok := item.(model.WSMessage); ok {
+			if msgData, ok := wsMsg.Payload.(model.MsgInOut); ok {
+				if msgData.ConversationId != conversationID {
+					newQueue = append(newQueue, item)
+				} else {
+					found = true
+				}
+			}
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("conversation %s not found for customer %s", conversationID, customerID)
+	}
+
+	h.CustomerMessageQueue[customerID] = newQueue
+
+	// Clean up empty queue
+	if len(h.CustomerMessageQueue[customerID]) == 0 {
+		delete(h.CustomerMessageQueue, customerID)
+	}
+
+	return nil
+}
+
+// RemoveMessageFromHumanAgentQueue removes specific customer info from agent's queue
+func (h *Hub) RemoveMessageFromHumanAgentQueue(agentID string, customerID string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	queue, exists := h.HumanAgentMessageQueue[agentID]
+	if !exists {
+		return fmt.Errorf("agent %s not found in message queue", agentID)
+	}
+
+	// Filter out messages for this customer
+	newQueue := []any{}
+	found := false
+	for _, item := range queue {
+		if wsMsg, ok := item.(model.WSMessage); ok {
+			if msgData, ok := wsMsg.Payload.(model.MsgInOut); ok {
+				// Check if sender or receiver is this customer
+				if msgData.SenderId != customerID && msgData.ReceiverId != customerID {
+					newQueue = append(newQueue, item)
+				} else {
+					found = true
+				}
+			}
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("customer %s not found in agent %s message queue", customerID, agentID)
+	}
+
+	h.HumanAgentMessageQueue[agentID] = newQueue
+
+	// Clean up empty queue
+	if len(h.HumanAgentMessageQueue[agentID]) == 0 {
+		delete(h.HumanAgentMessageQueue, agentID)
+	}
+
+	return nil
 }

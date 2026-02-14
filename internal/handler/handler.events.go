@@ -29,6 +29,12 @@ func handleIncomingMessage(client *hub.Client, message []byte) {
 			return
 		}
 		handleHumanAcceptTheChat(client, wsMsg.Payload)
+	case "end_chat":
+		if client.Type != "Human-Agent" {
+			sendError(client, "you're not allowed for this request")
+			return
+		}
+		handleEndtheChat(client, wsMsg.Payload)
 	case "message":
 		if client.FlagRevealed == true {
 			fmt.Println("Client Type: ", client.Type)
@@ -310,5 +316,36 @@ func handleConversationWithHuman(client *hub.Client, payload any) {
 		for _, v := range client.Hub.GetCustomerById(client.CustomerPass.Id) {
 			sendMessage(v, "message", data)
 		}
+	}
+}
+
+// trigger name: end_chat
+// -> todos:
+// *
+// -> process:
+// -> -> construct the payload
+// -->>  validate data
+// -->> find the ids
+// 1. remove data from all the queues
+// 2. dettach Human seal from customer
+// 3. update sos flag
+// '4. unmark flag
+// *//
+func handleEndtheChat(client *hub.Client, payload any) {
+	conversation, err := constructor.ConversationPayloadConstructor(payload, false)
+	if err != nil {
+		log.Print("conversation construction err-> handle end chat:", err)
+	}
+	companyId := conversation.CompanyId
+	customerId := conversation.CustomerPayload.Id
+	humanAgentId := client.HumanAgentPass.Id
+	conversationId := conversation.Id
+	fmt.Println(companyId, customerId, humanAgentId, conversationId)
+	customer := client.Hub.GetCustomerById(customerId)
+	for _, v := range customer {
+		v.FlagRevealed = false
+		v.SosFlag = false
+		v.HumanAgentPass = nil
+		sendMessage(v, "end_chat", "conversation ended")
 	}
 }
