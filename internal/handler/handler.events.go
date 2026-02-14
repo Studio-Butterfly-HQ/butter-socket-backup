@@ -92,8 +92,12 @@ func handleChatTransferToHumanAgent(client *hub.Client, payload any) {
 	// 1. cheking the sos flag -> to processed // else duplicate request (done...)
 	if !client.SosFlag {
 		client.SosFlag = true
+		//todo : need to mark all active device true....
+		//---->>>><<<<<_______>>>><<<<<<<<<<<<OOOOOOOOOO
 		//-> step1-> creating conversation payload
 		conversation, err := constructor.ConversationPayloadConstructor(payload, false)
+		conversation.CustomerPayload.Id = client.CustomerPass.Id
+		conversation.CustomerPayload.CompanyId = client.CustomerPass.CompanyId
 		connList := client.Hub.GetHumanAgents() //<- all active agents (done without company isolation)
 		if len(connList) == 0 {
 			// no one is available : notify the customer (done...)

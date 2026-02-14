@@ -10,15 +10,15 @@ import (
 )
 
 type Client struct {
-	Hub                      *Hub
-	Type                     string
-	Conn                     *websocket.Conn
-	Send                     chan []byte
-	CustomerPass             *model.CustomerPass
-	HumanAgentPass           *model.HumanAgentPass
-	CancelAI                 context.CancelFunc
-	SosFlag                  bool   // -> true when customer talking to human or need to talk to human
-	FlagRevealed             bool   // -> when a human accepts connection
+	Hub            *Hub
+	Type           string
+	Conn           *websocket.Conn
+	Send           chan []byte
+	CustomerPass   *model.CustomerPass
+	HumanAgentPass *model.HumanAgentPass
+	CancelAI       context.CancelFunc
+	SosFlag        bool // -> true when customer talking to human or need to talk to human
+	FlagRevealed   bool // -> when a human accepts connection
 }
 
 type Hub struct {
@@ -34,9 +34,9 @@ type Hub struct {
 	company map[string]map[string]map[string]bool
 
 	//queues (pending messages (chat request list for company))
-	PendingChatQueue map[string][]any //for agents map(companyid,[request list])
+	PendingChatQueue map[string][]any //for agents map(companyid,[request list]) // unassigned
 	//active queue
-	ActiveChatQueue map[string][]any //agents active chats
+	ActiveChatQueue map[string][]any //agents active chats //-> inbox in front end
 	//Human Agent queue
 	HumanAgentMessageQueue map[string][]any
 

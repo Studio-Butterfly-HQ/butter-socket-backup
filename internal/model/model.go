@@ -107,3 +107,18 @@ type AssignedTo struct {
 	Name       string `json:"name"`
 	ProfileUri string `json:"profile_uri"`
 }
+
+type CustomerProfileResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    struct {
+		ID                string `json:"id"`
+		CompanyID         string `json:"company_id"`
+		Name              string `json:"name"`
+		ProfileURI        string `json:"profile_uri"`
+		Contact           string `json:"contact"`
+		Source            string `json:"source"`
+		ConversationCount int    `json:"conversation_count"`
+	} `json:"data"`
+	Timestamp string `json:"timestamp"`
+}
