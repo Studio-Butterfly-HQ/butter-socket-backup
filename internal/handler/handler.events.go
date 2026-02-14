@@ -34,7 +34,7 @@ func handleIncomingMessage(client *hub.Client, message []byte) {
 			fmt.Println("Client Type: ", client.Type)
 			handleConversationWithHuman(client, wsMsg.Payload)
 		} else {
-			sendMessage(client, "event", "ai not available")
+			sendMessage(client, "ai_message", "ai not available")
 			//handleChatStreamMessage(client, wsMsg.Payload)
 		}
 	case "ping":
