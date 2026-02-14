@@ -23,22 +23,24 @@ func (h *Hub) CustomerMessageQueueBroadcast(customerID string) {
 		return
 	}
 
-	queueBytes, err := json.Marshal(queue)
-	if err != nil {
-		fmt.Println("Error marshaling customer message queue:", err)
-		return
-	}
+	for _, msg := range queue {
+		queueBytes, err := json.Marshal(msg)
+		if err != nil {
+			fmt.Println("Error marshaling customer message queue:", err)
+			return
+		}
 
-	devices, ok := h.customers[customerID]
-	if !ok || len(devices) == 0 {
-		return
-	}
+		devices, ok := h.customers[customerID]
+		if !ok || len(devices) == 0 {
+			return
+		}
 
-	for _, customer := range devices {
-		select {
-		case customer.Send <- queueBytes:
-		default:
-			fmt.Println("Customer send channel full, skipping device")
+		for _, customer := range devices {
+			select {
+			case customer.Send <- queueBytes:
+			default:
+				fmt.Println("Customer send channel full, skipping device")
+			}
 		}
 	}
 }
@@ -52,22 +54,24 @@ func (h *Hub) BroadcastCustomerEventQueue(customerID string) {
 		return
 	}
 
-	queueBytes, err := json.Marshal(queue)
-	if err != nil {
-		fmt.Println("Error marshaling customer event queue:", err)
-		return
-	}
+	for _, item := range queue {
+		queueBytes, err := json.Marshal(item)
+		if err != nil {
+			fmt.Println("Error marshaling customer event queue:", err)
+			return
+		}
 
-	devices, ok := h.customers[customerID]
-	if !ok || len(devices) == 0 {
-		return
-	}
+		devices, ok := h.customers[customerID]
+		if !ok || len(devices) == 0 {
+			return
+		}
 
-	for _, customer := range devices {
-		select {
-		case customer.Send <- queueBytes:
-		default:
-			fmt.Println("Customer send channel full, skipping device")
+		for _, customer := range devices {
+			select {
+			case customer.Send <- queueBytes:
+			default:
+				fmt.Println("Customer send channel full, skipping device")
+			}
 		}
 	}
 }
@@ -81,19 +85,21 @@ func (h *Hub) BroadcastPendingQueue(companyID string) {
 		return
 	}
 
-	quedMessages, err := json.Marshal(queue)
-	if err != nil {
-		fmt.Println("Error marshaling pending queue:", err)
-		return
-	}
+	for _, message := range queue {
+		msg, err := json.Marshal(message)
+		if err != nil {
+			fmt.Println("Error marshaling pending queue:", err)
+			return
+		}
 
-	for agentID, devices := range h.humanAgents {
-		fmt.Println("Broadcasting pending queue to Agent Id:", agentID)
-		for _, device := range devices {
-			select {
-			case device.Send <- quedMessages:
-			default:
-				fmt.Println("Agent send channel full, skipping device")
+		for agentID, devices := range h.humanAgents {
+			fmt.Println("Broadcasting pending queue to Agent Id:", agentID)
+			for _, device := range devices {
+				select {
+				case device.Send <- msg:
+				default:
+					fmt.Println("Agent send channel full, skipping device")
+				}
 			}
 		}
 	}
@@ -107,23 +113,24 @@ func (h *Hub) BroadcastActiveChat(agentID string) {
 	if !ok || len(queue) == 0 {
 		return
 	}
+	for _, item := range queue {
+		queueBytes, err := json.Marshal(item)
+		if err != nil {
+			fmt.Println("Error marshaling active chat queue:", err)
+			return
+		}
 
-	queueBytes, err := json.Marshal(queue)
-	if err != nil {
-		fmt.Println("Error marshaling active chat queue:", err)
-		return
-	}
+		devices, ok := h.humanAgents[agentID]
+		if !ok {
+			return
+		}
 
-	devices, ok := h.humanAgents[agentID]
-	if !ok {
-		return
-	}
-
-	for _, device := range devices {
-		select {
-		case device.Send <- queueBytes:
-		default:
-			fmt.Println("Agent send channel full, skipping device")
+		for _, device := range devices {
+			select {
+			case device.Send <- queueBytes:
+			default:
+				fmt.Println("Agent send channel full, skipping device")
+			}
 		}
 	}
 }
@@ -137,22 +144,24 @@ func (h *Hub) BroadcastHumanAgentMessages(agentID string) {
 		return
 	}
 
-	queueBytes, err := json.Marshal(queue)
-	if err != nil {
-		fmt.Println("Error marshaling human agent queue:", err)
-		return
-	}
+	for _, msg := range queue {
+		queueBytes, err := json.Marshal(msg)
+		if err != nil {
+			fmt.Println("Error marshaling human agent queue:", err)
+			return
+		}
 
-	devices, ok := h.humanAgents[agentID]
-	if !ok {
-		return
-	}
+		devices, ok := h.humanAgents[agentID]
+		if !ok {
+			return
+		}
 
-	for _, device := range devices {
-		select {
-		case device.Send <- queueBytes:
-		default:
-			fmt.Println("Agent send channel full, skipping device")
+		for _, device := range devices {
+			select {
+			case device.Send <- queueBytes:
+			default:
+				fmt.Println("Agent send channel full, skipping device")
+			}
 		}
 	}
 }

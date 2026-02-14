@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"time"
 )
 
 func handleIncomingMessage(client *hub.Client, message []byte) {
@@ -151,9 +152,11 @@ func handleHumanAcceptTheChat(client *hub.Client, payload any) {
 	conversation.Status = "on going"
 	//mark the customer accepted and connected to human:
 	///->
+	AgentPassSeal := client.HumanAgentPass
+	AgentPassSeal.ConversationSeal = conversation.Id
 	client.Hub.MarkCustomerAccepted(
 		conversation.CustomerPayload.Id,
-		client.HumanAgentPass,
+		AgentPassSeal,
 	)
 	//push to the queue for this agent list of map:
 	client.Hub.AddToActiveChat(
@@ -169,7 +172,7 @@ func handleHumanAcceptTheChat(client *hub.Client, payload any) {
 	//--->> broadcast the inbox to all devices of the Human Agent
 	//human agent devics:
 	agentDevices := client.Hub.GetHumanAgentById(client.HumanAgentPass.Id)
-	//send to inbox:
+	//send to inbox list:
 	for _, agent := range agentDevices {
 		sendMessage(agent, "accept_chat", conversation)
 	}
@@ -205,6 +208,7 @@ func handleHumanAcceptTheChat(client *hub.Client, payload any) {
 			Id: client.HumanAgentPass.Id,
 			// CompanyId:   client.HumanAgentPass.CompanyId,
 			// Departments: client.HumanAgentPass.Departments,
+			ConversationSeal: conversation.Id,
 		}
 		sendMessage(v, "connection_event", "connection request accepted")
 	}
@@ -225,7 +229,7 @@ func handleConversationWithHuman(client *hub.Client, payload any) {
 	fmt.Println("message Data: ", data)
 
 	if client.Type == "Human-Agent" {
-		if data.ReceiverId == "" {
+		if data.ReceiverId == "" || data.ConversationId == "" {
 			sendError(client, "invalid payload")
 			return
 		}
@@ -235,53 +239,72 @@ func handleConversationWithHuman(client *hub.Client, payload any) {
 			sendMessage(client, "connection_event", "you're not allowed to text unless customer wants")
 			return
 		}
+		data.SenderId = client.HumanAgentPass.Id
+		data.ContentType = "text"
+		data.CreatedAt = time.Now().String()
+		data.SenderType = "Human-Agent"
+		msgPayload := &model.WSMessage{
+			Type:    "message",
+			Payload: data,
+		}
 		if len(customer) == 0 {
 			//meessage adding to customer queue:
-			client.Hub.AddMessageToCustomerQueue(data.ReceiverId, payload)
-			//client.Hub.CustomerMessageQueue[data.ReceiverId] = append(client.Hub.CustomerMessageQueue[data.ReceiverId], payload)
+			client.Hub.AddMessageToCustomerQueue(data.ReceiverId, msgPayload)
+			//client.Hub.CustomerMessageQueue[data.ReceiverId] = append(client.Hub.CustomerMessageQueue[data.ReceiverId], msgPayload)
 
 			//message adding to human agent queue:
-			client.Hub.AddMessageToHumanAgentQueue(client.HumanAgentPass.Id, payload)
-			//client.Hub.HumanAgentMessageQueue[client.HumanAgentPass.Id] = append(client.Hub.HumanAgentMessageQueue[client.HumanAgentPass.Id], payload)
+			client.Hub.AddMessageToHumanAgentQueue(client.HumanAgentPass.Id, msgPayload)
+			//client.Hub.HumanAgentMessageQueue[client.HumanAgentPass.Id] = append(client.Hub.HumanAgentMessageQueue[client.HumanAgentPass.Id], msgPayload)
 
 			fmt.Println(len(client.Hub.CustomerMessageQueue))
 			fmt.Println(client.Hub.CustomerMessageQueue[data.ReceiverId])
 			sendMessage(client, "connection_event", "customer offline, message added to customer message queue")
 			return
 		}
-		client.Hub.AddMessageToCustomerQueue(data.ReceiverId, payload)
-		client.Hub.AddMessageToHumanAgentQueue(client.HumanAgentPass.Id, payload)
+		client.Hub.AddMessageToCustomerQueue(data.ReceiverId, msgPayload)
+		client.Hub.AddMessageToHumanAgentQueue(client.HumanAgentPass.Id, msgPayload)
 
-		// client.Hub.CustomerMessageQueue[data.ReceiverId] = append(client.Hub.CustomerMessageQueue[data.ReceiverId], payload)
-		// client.Hub.HumanAgentMessageQueue[client.HumanAgentPass.Id] = append(client.Hub.HumanAgentMessageQueue[client.HumanAgentPass.Id], payload)
+		// client.Hub.CustomerMessageQueue[data.ReceiverId] = append(client.Hub.CustomerMessageQueue[data.ReceiverId], msgPayload)
+		// client.Hub.HumanAgentMessageQueue[client.HumanAgentPass.Id] = append(client.Hub.HumanAgentMessageQueue[client.HumanAgentPass.Id], msgPayload)
 		for _, v := range customer {
-			sendMessage(v, "message", payload)
+			sendMessage(v, "message", data)
 		}
 		//broadcast to all agent devices//
 		for _, v := range client.Hub.GetHumanAgentById(client.HumanAgentPass.Id) {
-			sendMessage(v, "message", payload)
+			sendMessage(v, "message", data)
 		}
 		//............................................//
 	} else if client.Type == "Customer" {
 		humanAgent := client.Hub.GetHumanAgentById(client.HumanAgentPass.Id)
+		data.SenderId = client.CustomerPass.Id
+		data.ReceiverId = client.HumanAgentPass.Id
+		data.ConversationId = client.HumanAgentPass.ConversationSeal
+		data.ContentType = "text"
+		data.CreatedAt = time.Now().String()
+		data.SenderType = "Customer"
+		msgPayload := &model.WSMessage{
+			Type:    "message",
+			Payload: data,
+		}
+		fmt.Println("conversation seal: ", client.HumanAgentPass.ConversationSeal)
 		if len(humanAgent) == 0 {
-			client.Hub.AddMessageToHumanAgentQueue(client.HumanAgentPass.Id, payload)
-			client.Hub.AddMessageToCustomerQueue(client.CustomerPass.Id, payload)
-			//client.Hub.HumanAgentMessageQueue[client.HumanAgentPass.Id] = append(client.Hub.HumanAgentMessageQueue[client.HumanAgentPass.Id], payload)
+			client.Hub.AddMessageToHumanAgentQueue(client.HumanAgentPass.Id, msgPayload)
+			client.Hub.AddMessageToCustomerQueue(client.CustomerPass.Id, msgPayload)
+			//client.Hub.HumanAgentMessageQueue[client.HumanAgentPass.Id] = append(client.Hub.HumanAgentMessageQueue[client.HumanAgentPass.Id], msgPayload)
 
 			sendMessage(client, "connection_event", "agent offline, message added to agent queue")
 			return
 		}
-		client.Hub.AddMessageToHumanAgentQueue(client.HumanAgentPass.Id, payload)
-		client.Hub.AddMessageToCustomerQueue(client.CustomerPass.Id, payload)
+		client.Hub.AddMessageToHumanAgentQueue(client.HumanAgentPass.Id, msgPayload)
+		client.Hub.AddMessageToCustomerQueue(client.CustomerPass.Id, msgPayload)
 
-		//client.Hub.HumanAgentMessageQueue[client.HumanAgentPass.Id] = append(client.Hub.HumanAgentMessageQueue[client.HumanAgentPass.Id], payload)
-		//client.Hub.CustomerMessageQueue[client.CustomerPass.Id] = append(client.Hub.CustomerMessageQueue[client.CustomerPass.Id], payload)
+		//client.Hub.HumanAgentMessageQueue[client.HumanAgentPass.Id] = append(client.Hub.HumanAgentMessageQueue[client.HumanAgentPass.Id], msgPayload)
+		//client.Hub.CustomerMessageQueue[client.CustomerPass.Id] = append(client.Hub.CustomerMessageQueue[client.CustomerPass.Id], msgPayload)
 		for _, v := range humanAgent {
-			sendMessage(v, "message", payload)
+			sendMessage(v, "message", data)
 		}
 		for _, v := range client.Hub.GetCustomerById(client.CustomerPass.Id) {
-			sendMessage(v, "message", payload)
+			sendMessage(v, "message", data)
 		}
 	}
 }

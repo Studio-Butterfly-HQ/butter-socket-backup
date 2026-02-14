@@ -10,15 +10,15 @@ import (
 )
 
 type Client struct {
-	Hub            *Hub
-	Type           string
-	Conn           *websocket.Conn
-	Send           chan []byte
-	CustomerPass   *model.CustomerPass
-	HumanAgentPass *model.HumanAgentPass
-	CancelAI       context.CancelFunc
-	SosFlag        bool // -> true when customer talking to human or need to talk to human
-	FlagRevealed   bool // -> when a human accepts connection
+	Hub                      *Hub
+	Type                     string
+	Conn                     *websocket.Conn
+	Send                     chan []byte
+	CustomerPass             *model.CustomerPass
+	HumanAgentPass           *model.HumanAgentPass
+	CancelAI                 context.CancelFunc
+	SosFlag                  bool   // -> true when customer talking to human or need to talk to human
+	FlagRevealed             bool   // -> when a human accepts connection
 }
 
 type Hub struct {
@@ -242,6 +242,18 @@ func (h *Hub) ShowCustomers() {
 	}
 }
 
+// AddToPendingChat safely adds a conversation to the pending chat queue for a company
+func (h *Hub) AddToPendingChat(companyID string, conversation any) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.PendingChatQueue == nil {
+		h.PendingChatQueue = make(map[string][]any)
+	}
+	wsMsgPayload := h.wsMessageCreator("transfer_chat", conversation)
+	h.PendingChatQueue[companyID] = append(h.PendingChatQueue[companyID], wsMsgPayload)
+}
+
 func (h *Hub) RemoveFromPending(companyID, customerID string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -251,10 +263,12 @@ func (h *Hub) RemoveFromPending(companyID, customerID string) {
 	var updatedList []any
 
 	for _, item := range pendingList {
-		conv, ok := item.(*model.ConversationPayload)
+		wsMsg, ok := item.(*model.WSMessage)
 		if !ok {
 			continue
 		}
+
+		conv := wsMsg.Payload.(*model.ConversationPayload)
 
 		if conv.CustomerPayload.Id != customerID {
 			updatedList = append(updatedList, conv)
@@ -274,8 +288,8 @@ func (h *Hub) MarkCustomerAccepted(customerID string, agent *model.HumanAgentPas
 func (h *Hub) AddToActiveChat(agentID string, conversation any) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-
-	h.ActiveChatQueue[agentID] = append(h.ActiveChatQueue[agentID], conversation)
+	wsMsgPayload := h.wsMessageCreator("accept_chat", conversation)
+	h.ActiveChatQueue[agentID] = append(h.ActiveChatQueue[agentID], wsMsgPayload)
 }
 
 // AddMessageToCustomerQueue safely appends a message to a customer's event queue
@@ -288,18 +302,6 @@ func (h *Hub) AddEventToCustomerEventQueue(customerID string, msg any) {
 	}
 
 	h.CustomerEventQueue[customerID] = append(h.CustomerEventQueue[customerID], msg)
-}
-
-// AddToPendingChat safely adds a conversation to the pending chat queue for a company
-func (h *Hub) AddToPendingChat(companyID string, conversation any) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	if h.PendingChatQueue == nil {
-		h.PendingChatQueue = make(map[string][]any)
-	}
-
-	h.PendingChatQueue[companyID] = append(h.PendingChatQueue[companyID], conversation)
 }
 
 // AddMessageToCustomerQueue safely appends a message to a customer's message queue

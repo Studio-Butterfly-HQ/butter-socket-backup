@@ -16,9 +16,10 @@ type Customer struct {
 }
 
 type HumanAgentPass struct {
-	Id          string
-	CompanyId   string
-	Departments []Department
+	Id               string
+	CompanyId        string
+	Departments      []Department
+	ConversationSeal string //used for assigning self for a customer
 }
 
 type CustomerPass struct {
@@ -58,13 +59,14 @@ type WSMessage struct {
 
 // payload for -> trigger: message
 type MsgInOut struct {
-	SenderId    string `json:"sender_id"`
-	SenderType  string `json:"sender_type"`
-	ReceiverId  string `json:"receiver_id,omitempty"`
-	Typing      string `json:"typing,omitempty"`
-	Content     string `json:"content"`
-	ContentType string `json:"content_type"`
-	CreatedAt   string `json:"created_at,omitempty"`
+	SenderId       string `json:"sender_id"`
+	SenderType     string `json:"sender_type"`
+	ReceiverId     string `json:"receiver_id,omitempty"`
+	ConversationId string `json:"conversation_id,omitempty"`
+	Typing         string `json:"typing,omitempty"`
+	Content        string `json:"content"`
+	ContentType    string `json:"content_type"`
+	CreatedAt      string `json:"created_at,omitempty"`
 }
 
 // payload for -> trigger: transfer_chat ////payload for -> trigger: accept_chat//payload for -> trigger: accept_chat
@@ -96,7 +98,7 @@ type ExceptionPayload struct {
 
 type TypingPayload struct {
 	SenderId   string `json:"sender_id"`
-	ReceiverId string `json:"receiver_id,omit_empty"`
+	ReceiverId string `json:"receiver_id,omitempty"`
 	Typing     bool   `json:"typing"`
 }
 
