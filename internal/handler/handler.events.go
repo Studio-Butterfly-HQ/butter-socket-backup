@@ -105,7 +105,7 @@ func handleChatTransferToHumanAgent(client *hub.Client, payload any) {
 			}
 			//append to the pending queue of the company
 			client.Hub.AddToPendingChat(client.CustomerPass.CompanyId, conversation)
-			sendMessage(client, "connection_event", unavilableMsgPayload)
+			sendMessage(client, "pending", unavilableMsgPayload)
 		} else {
 			//everyting alright
 			//-> step2-> sending the payload as byte in SendMessage()
@@ -126,7 +126,7 @@ func handleChatTransferToHumanAgent(client *hub.Client, payload any) {
 			SenderId:   "system",
 			Content:    "duplicate request",
 		}
-		sendMessage(client, "connection_event", duplicateMsgPayload)
+		sendMessage(client, "pending", duplicateMsgPayload)
 	}
 }
 
@@ -181,15 +181,15 @@ func handleHumanAcceptTheChat(client *hub.Client, payload any) {
 	fmt.Println(customer)
 	if len(customer) == 0 {
 		msg := model.WSMessage{
-			Type:    "connection_event",
+			Type:    "accepted",
 			Payload: "connected to human",
 		}
 		client.Hub.AddEventToCustomerEventQueue(conversation.CustomerPayload.Id, msg)
-		sendMessage(client, "connection_event", "customer offline...")
+		sendMessage(client, "customer_offline", "customer offline...")
 		return
 	}
 	if len(customer) != 0 && customer[0].FlagRevealed {
-		sendMessage(client, "connection_event", "already connected")
+		sendMessage(client, "accepted", "already connected")
 		return
 	}
 	fmt.Println(conversation)
@@ -198,7 +198,7 @@ func handleHumanAcceptTheChat(client *hub.Client, payload any) {
 		return
 	}
 	msg := model.WSMessage{
-		Type:    "connection_event",
+		Type:    "accepted",
 		Payload: "connected to human",
 	}
 	client.Hub.AddEventToCustomerEventQueue(conversation.CustomerPayload.Id, msg)
@@ -210,9 +210,9 @@ func handleHumanAcceptTheChat(client *hub.Client, payload any) {
 			// Departments: client.HumanAgentPass.Departments,
 			ConversationSeal: conversation.Id,
 		}
-		sendMessage(v, "connection_event", "connection request accepted")
+		sendMessage(v, "connection_stablished", "connection request accepted")
 	}
-	sendMessage(client, "connection_event", "connection stablished")
+	sendMessage(client, "connection_stablished", "connection stablished")
 }
 
 // trigger name: message
@@ -258,7 +258,7 @@ func handleConversationWithHuman(client *hub.Client, payload any) {
 
 			fmt.Println(len(client.Hub.CustomerMessageQueue))
 			fmt.Println(client.Hub.CustomerMessageQueue[data.ReceiverId])
-			sendMessage(client, "connection_event", "customer offline, message added to customer message queue")
+			sendMessage(client, "customer_offline", "customer offline, message added to customer message queue")
 			return
 		}
 		client.Hub.AddMessageToCustomerQueue(data.ReceiverId, msgPayload)
@@ -292,7 +292,7 @@ func handleConversationWithHuman(client *hub.Client, payload any) {
 			client.Hub.AddMessageToCustomerQueue(client.CustomerPass.Id, msgPayload)
 			//client.Hub.HumanAgentMessageQueue[client.HumanAgentPass.Id] = append(client.Hub.HumanAgentMessageQueue[client.HumanAgentPass.Id], msgPayload)
 
-			sendMessage(client, "connection_event", "agent offline, message added to agent queue")
+			sendMessage(client, "agent_offline", "agent offline, message added to agent queue")
 			return
 		}
 		client.Hub.AddMessageToHumanAgentQueue(client.HumanAgentPass.Id, msgPayload)
