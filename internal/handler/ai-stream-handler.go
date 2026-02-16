@@ -6,6 +6,7 @@ import (
 	"butter-time/internal/model"
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -41,6 +42,8 @@ func handleAiStream(client *hub.Client, payload any) {
 
 	if err != nil {
 		sendError(client, "AI error")
+		sendMessage(client, "message", "ai is unavailable to response")
+		fmt.Println(err.Error())
 		return
 	}
 	//Tell frontend: AI finished
