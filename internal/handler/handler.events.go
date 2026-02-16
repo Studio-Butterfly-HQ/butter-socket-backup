@@ -114,7 +114,6 @@ func handleChatTransferToHumanAgent(client *hub.Client, payload any) {
 				Content:    "added to queue list",
 			}
 			//append to the pending queue of the company
-			client.Hub.AddToPendingChat(client.CustomerPass.CompanyId, conversation)
 			sendMessage(client, "pending", unavilableMsgPayload)
 		} else {
 			//everyting alright
@@ -129,6 +128,7 @@ func handleChatTransferToHumanAgent(client *hub.Client, payload any) {
 			for _, conn := range connList {
 				sendMessage(conn, "transfer_chat", conversation)
 			}
+			client.Hub.AddToPendingChat(client.CustomerPass.CompanyId, conversation)
 		}
 	} else {
 		duplicateMsgPayload := model.MsgInOut{

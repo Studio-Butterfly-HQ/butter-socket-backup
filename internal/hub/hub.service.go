@@ -15,8 +15,8 @@ func (h *Hub) printStats() {
 }
 
 func (h *Hub) CustomerMessageQueueBroadcast(customerID string) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
+	// h.mu.RLock()
+	// defer h.mu.RUnlock()
 
 	queue, ok := h.CustomerMessageQueue[customerID]
 	if !ok || len(queue) == 0 {
@@ -46,8 +46,8 @@ func (h *Hub) CustomerMessageQueueBroadcast(customerID string) {
 }
 
 func (h *Hub) BroadcastCustomerEventQueue(customerID string) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
+	// h.mu.RLock()
+	// defer h.mu.RUnlock()
 
 	queue, ok := h.CustomerEventQueue[customerID]
 	if !ok || len(queue) == 0 {
@@ -76,9 +76,9 @@ func (h *Hub) BroadcastCustomerEventQueue(customerID string) {
 	}
 }
 
-func (h *Hub) BroadcastPendingQueue(companyID string) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
+func (h *Hub) BroadcastPendingQueue(companyID string, client *Client) {
+	// h.mu.RLock()
+	// defer h.mu.RUnlock()
 
 	queue, ok := h.PendingChatQueue[companyID]
 	if !ok || len(queue) == 0 {
@@ -91,23 +91,28 @@ func (h *Hub) BroadcastPendingQueue(companyID string) {
 			fmt.Println("Error marshaling pending queue:", err)
 			return
 		}
-
-		for agentID, devices := range h.humanAgents {
-			fmt.Println("Broadcasting pending queue to Agent Id:", agentID)
-			for _, device := range devices {
-				select {
-				case device.Send <- msg:
-				default:
-					fmt.Println("Agent send channel full, skipping device")
-				}
-			}
+		select {
+		case client.Send <- msg:
+		default:
+			fmt.Println("Agent send channel is full")
 		}
+
+		// for agentID, devices := range h.humanAgents {
+		// 	fmt.Println("Broadcasting pending queue to Agent Id:", agentID)
+		// 	for _, device := range devices {
+		// 		select {
+		// 		case device.Send <- msg:
+		// 		default:
+		// 			fmt.Println("Agent send channel full, skipping device")
+		// 		}
+		// 	}
+		// }
 	}
 }
 
 func (h *Hub) BroadcastActiveChat(agentID string) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
+	// h.mu.RLock()
+	// defer h.mu.RUnlock()
 
 	queue, ok := h.ActiveChatQueue[agentID]
 	if !ok || len(queue) == 0 {
@@ -136,8 +141,8 @@ func (h *Hub) BroadcastActiveChat(agentID string) {
 }
 
 func (h *Hub) BroadcastHumanAgentMessages(agentID string) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
+	// h.mu.RLock()
+	// defer h.mu.RUnlock()
 
 	queue, ok := h.HumanAgentMessageQueue[agentID]
 	if !ok || len(queue) == 0 {

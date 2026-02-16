@@ -82,7 +82,7 @@ func (h *Hub) Run() {
 			if client.Type == "Human-Agent" {
 				h.humanAgents[client.HumanAgentPass.Id] = append(h.humanAgents[client.HumanAgentPass.Id], client)
 				h.registerAgent(client.HumanAgentPass)
-				go h.BroadcastPendingQueue(client.HumanAgentPass.CompanyId)
+				go h.BroadcastPendingQueue(client.HumanAgentPass.CompanyId, client)
 				go h.BroadcastActiveChat(client.HumanAgentPass.Id)
 				go h.BroadcastHumanAgentMessages(client.HumanAgentPass.Id)
 			} else {
@@ -131,6 +131,7 @@ func (h *Hub) Run() {
 						h.customers[customerID] = list
 					}
 				}
+				h.RemoveFromPendingUnsafe(client.CustomerPass.CompanyId, customerID)
 			}
 			client.Conn.Close()
 			go h.printStats()
@@ -263,6 +264,30 @@ func (h *Hub) AddToPendingChat(companyID string, conversation any) {
 }
 
 func (h *Hub) RemoveFromPending(companyID, customerID string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	pendingList := h.PendingChatQueue[companyID]
+
+	var updatedList []any
+
+	for _, item := range pendingList {
+		wsMsg, ok := item.(*model.WSMessage)
+		if !ok {
+			continue
+		}
+
+		conv := wsMsg.Payload.(*model.ConversationPayload)
+
+		if conv.CustomerPayload.Id != customerID {
+			updatedList = append(updatedList, conv)
+		}
+	}
+
+	h.PendingChatQueue[companyID] = updatedList
+}
+
+func (h *Hub) RemoveFromPendingUnsafe(companyID, customerID string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
