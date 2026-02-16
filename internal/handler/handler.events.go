@@ -40,10 +40,18 @@ func handleIncomingMessage(client *hub.Client, message []byte) {
 			fmt.Println("Client Type: ", client.Type)
 			handleConversationWithHuman(client, wsMsg.Payload)
 		} else {
-			sendMessage(client, "ai_message", "ai not available")
+			sendMessage(client, "butter_chat", "ai chat for customers coming soon...")
 			//handleChatStreamMessage(client, wsMsg.Payload)
 		}
+	case "butter_chat":
+		if client.Type != "Human-Agent" {
+			sendMessage(client, "ai_message", "this event is for butter-chat users only...")
+			return
+		}
+		handleAiStream(client, wsMsg.Payload)
+
 	case "ping":
+		fmt.Println("pinging...")
 		sendPong(client)
 	default:
 		sendError(client, "Unknown message type")
