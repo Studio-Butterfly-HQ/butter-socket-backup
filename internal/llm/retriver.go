@@ -27,6 +27,30 @@ var (
 	minScore       = 0.35 // relevance threshold — below this = no useful match
 )
 
+// ErrCollectionNotFound is returned when the company has no Qdrant collection yet.
+var ErrCollectionNotFound = fmt.Errorf("knowledge base not found for this company")
+
+// greetingPhrases catches common greetings in any language so we respond warmly
+// instead of treating them as irrelevant queries.
+var greetingPhrases = []string{
+	"hi", "hello", "hey", "hiya", "howdy",
+	"good morning", "good afternoon", "good evening", "good night",
+	"salam", "salaam", "assalamu alaikum", "assalamualaikum",
+	"আস্সালামু আলাইকুম", "সালাম", "হ্যালো", "হ্যা", "হেলো",
+	"নমস্কার", "নমস্তে", "কেমন আছেন", "কি খবর",
+	"bonjour", "hola", "ciao", "مرحبا", "السلام عليكم",
+}
+
+func isGreeting(query string) bool {
+	q := strings.ToLower(strings.TrimSpace(query))
+	for _, g := range greetingPhrases {
+		if q == g || strings.HasPrefix(q, g+" ") || strings.HasSuffix(q, " "+g) {
+			return true
+		}
+	}
+	return false
+}
+
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
@@ -93,16 +117,47 @@ func RetrieveAndAnswer(
 		return RAGResult{}, fmt.Errorf("embedding query: %w", err)
 	}
 
-	// 2. Search Qdrant for the company's collection
+	// 2. Detect greeting early — no need to hit Qdrant
+	if isGreeting(userQuery) {
+		prompt := buildGreetingPrompt(userQuery)
+		var fullAnswer strings.Builder
+		err = streamAnswer(ctx, prompt, func(token string) {
+			fullAnswer.WriteString(token)
+			if onToken != nil {
+				onToken(token)
+			}
+		})
+		if err != nil {
+			return RAGResult{}, fmt.Errorf("streaming greeting: %w", err)
+		}
+		return RAGResult{Answer: fullAnswer.String(), Relevant: true, HasData: true}, nil
+	}
+
+	// 3. Search Qdrant for the company's collection
 	chunks, err := searchQdrant(ctx, companyID, embedding)
 	if err != nil {
+		if err == ErrCollectionNotFound {
+			prompt := buildNoCollectionPrompt(userQuery)
+			var fullAnswer strings.Builder
+			_ = streamAnswer(ctx, prompt, func(token string) {
+				fullAnswer.WriteString(token)
+				if onToken != nil {
+					onToken(token)
+				}
+			})
+			return RAGResult{
+				Answer:   fullAnswer.String(),
+				Relevant: false,
+				HasData:  false,
+			}, nil
+		}
 		return RAGResult{}, fmt.Errorf("qdrant search: %w", err)
 	}
 
-	// 3. Evaluate relevance
+	// 4. Evaluate relevance
 	relevant, hasData := evaluateRelevance(chunks)
 
-	// 4. Build prompt based on relevance
+	// 5. Build prompt based on relevance
 	prompt := buildPrompt(userQuery, chunks, relevant, hasData)
 
 	// 5. Stream response
@@ -201,7 +256,7 @@ func searchQdrant(ctx context.Context, companyID string, vector []float64) ([]Re
 
 	if res.StatusCode == http.StatusNotFound {
 		// Collection doesn't exist for this company yet
-		return nil, nil
+		return nil, ErrCollectionNotFound
 	}
 
 	if res.StatusCode != http.StatusOK {
@@ -288,6 +343,39 @@ func evaluateRelevance(chunks []RetrievedChunk) (relevant bool, hasData bool) {
 
 // ── Step 4: Build dynamic prompt ─────────────────────────────────────────────
 
+// buildGreetingPrompt returns a warm, professional greeting response.
+func buildGreetingPrompt(userQuery string) string {
+	return fmt.Sprintf(`You are a professional and friendly AI assistant representing this company.
+The user has greeted you. Respond warmly and professionally.
+
+LANGUAGE RULE: Respond in English by default. Only switch to another language if the user
+has written a complete sentence (5+ words) clearly in that language. Never infer language
+from a single word or short phrase.
+
+Introduce yourself briefly as the company's AI assistant and invite them to ask any questions
+about the company's products, services, or policies. Keep it short, welcoming, and natural.
+
+User message: %s`, userQuery)
+}
+
+// buildNoCollectionPrompt handles the case where the company has no knowledge base yet.
+func buildNoCollectionPrompt(userQuery string) string {
+	return fmt.Sprintf(`You are a professional and empathetic AI assistant representing this company.
+The user has asked a question but the company's knowledge base has not been set up yet.
+
+LANGUAGE RULE: Respond in English by default. Only switch to another language if the user
+has written a complete sentence (5+ words) clearly in that language. Never infer language
+from a single word or short phrase — those are almost always English queries regardless of
+how the word looks.
+
+Apologise sincerely and let them know the knowledge base is not yet available.
+Offer to connect them with a human agent who can assist them directly.
+Ask warmly: "Would you like me to connect you with a human agent who can help you right away?"
+Keep the tone warm, professional, and reassuring. Do not make up any information.
+
+User question: %s`, userQuery)
+}
+
 func buildPrompt(userQuery string, chunks []RetrievedChunk, relevant, hasData bool) string {
 	var sb strings.Builder
 
@@ -303,8 +391,9 @@ func buildPrompt(userQuery string, chunks []RetrievedChunk, relevant, hasData bo
 	if !relevant {
 		sb.WriteString("INSTRUCTION: The user's query does not appear to be related to this company's domain or the available knowledge base. ")
 		sb.WriteString("Politely inform them that you can only assist with questions related to this company's products, services, and policies. ")
-		sb.WriteString("Do not attempt to answer the query. Keep the response brief and friendly.\n\n")
-		sb.WriteString(fmt.Sprintf("User query: %s\n", userQuery))
+		sb.WriteString("Do not attempt to answer the query. Keep the response brief and friendly.")
+		sb.WriteString("LANGUAGE RULE: Respond in English by default. Only switch to another language if the user has written a complete sentence (5+ words) clearly in that language. Never infer language from a single word or short phrase.")
+		sb.WriteString(fmt.Sprintf("User query: %s", userQuery))
 		return sb.String()
 	}
 
@@ -312,8 +401,9 @@ func buildPrompt(userQuery string, chunks []RetrievedChunk, relevant, hasData bo
 	if !hasData {
 		sb.WriteString("INSTRUCTION: The user's query is relevant to this company, but the knowledge base does not contain sufficient information to give a complete answer. ")
 		sb.WriteString("Acknowledge the question, share any small piece of relevant information you can from the context, then let the user know that you currently don't have detailed information on this topic. ")
-		sb.WriteString("Offer to connect them with a human agent who can assist further. Ask: 'Would you like me to connect you with a human agent for this query?'\n\n")
-		sb.WriteString(fmt.Sprintf("User query: %s\n", userQuery))
+		sb.WriteString("Offer to connect them with a human agent who can assist further. Ask: 'Would you like me to connect you with a human agent for this query?'")
+		sb.WriteString("LANGUAGE RULE: Respond in English by default. Only switch to another language if the user has written a complete sentence (5+ words) clearly in that language. Never infer language from a single word or short phrase.")
+		sb.WriteString(fmt.Sprintf("User query: %s", userQuery))
 		return sb.String()
 	}
 
