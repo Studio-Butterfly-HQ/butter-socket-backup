@@ -29,7 +29,7 @@ func handleAiStream(client *hub.Client, payload any) {
 	sendMessage(client, "butter_typing_start", nil)
 	var fullReply string
 	//Start streaming AI
-	err := llm.StreamButterAI(ctx, msgIn.Content, func(token string) {
+	_, err := llm.RetrieveAndAnswer(ctx, client.HumanAgentPass.CompanyId, msgIn.Content, func(token string) {
 		fullReply += token
 		//Send token immediately
 		sendMessage(client, "butter_stream", model.MsgInOut{
@@ -47,6 +47,7 @@ func handleAiStream(client *hub.Client, payload any) {
 		return
 	}
 	//Tell frontend: AI finished
+	sendMessage(client, "butter_stream_full_reply", fullReply)
 	sendMessage(client, "butter_typing_end", nil)
 	//Save fullReply to DB ---later....---///
 }

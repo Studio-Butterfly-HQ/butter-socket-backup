@@ -18,7 +18,7 @@ func AskButterAI(query string) string {
 
 	resp, err := client.Responses.New(ctx, responses.ResponseNewParams{
 		Input: responses.ResponseNewParamsInputUnion{OfString: openai.String(question)},
-		Model: openai.ChatModelGPT5_2,
+		Model: openai.ChatModelGPT4,
 	})
 
 	if err != nil {
