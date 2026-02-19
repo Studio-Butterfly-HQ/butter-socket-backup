@@ -23,7 +23,9 @@ func ConversationPayloadConstructor(payload any, accept bool) (model.Conversatio
 	//required: companyid, customer id and info,last (1-n [1<n<50] customer message)
 	//next---->
 	//construction of conversation.....................|---:<)
-	conversation.Id = uuid.New().String()
+	if accept {
+		conversation.Id = uuid.New().String()
+	}
 	conversation.Status = "waiting"
 	conversation.Summary = "About tiny super processor"
 	conversation.Tags = []string{"innovation", "hardware"}

@@ -112,7 +112,7 @@ func handleChatTransferToHumanAgent(client *hub.Client, payload any) {
 		//todo : need to mark all active device true....
 		//---->>>><<<<<_______>>>><<<<<<<<<<<<OOOOOOOOOO
 		//-> step1-> creating conversation payload
-		conversation, err := constructor.ConversationPayloadConstructor(payload, false)
+		conversation, err := constructor.ConversationPayloadConstructor(payload, true)
 		conversation.CustomerPayload.Id = client.CustomerPass.Id
 		conversation.CustomerPayload.CompanyId = client.CustomerPass.CompanyId
 		connList := client.Hub.GetHumanAgents() //<- all active agents (done without company isolation)
@@ -165,7 +165,7 @@ func handleChatTransferToHumanAgent(client *hub.Client, payload any) {
 // -> broadcast conversation to the human agent devices inbox
 // -> remove from pending list for all agents
 func handleHumanAcceptTheChat(client *hub.Client, payload any) {
-	conversation, err := constructor.ConversationPayloadConstructor(payload, true)
+	conversation, err := constructor.ConversationPayloadConstructor(payload, false)
 	if err != nil {
 		fmt.Println("error decoding to byte: conversation payload")
 		sendMessage(client, "connection_event", "server error")
