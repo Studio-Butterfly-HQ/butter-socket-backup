@@ -106,6 +106,8 @@ func CustomerHandler(h *hub.Hub, w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Humand agent -> assigned: ", humanAgentPass)
 	if h.GetCustomerById(result.Data.ID) != nil {
 		sosFlag = h.GetCustomerById(result.Data.ID)[0].SosFlag
+	} else if h.SosStatus[result.Data.ID] {
+		sosFlag = true
 	}
 	wsClient := &hub.Client{
 		Type: "Customer",

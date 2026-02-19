@@ -11,6 +11,7 @@ import (
 )
 
 func handleIncomingMessage(client *hub.Client, message []byte) {
+	fmt.Println("incomming message to handler: ", string(message))
 	var wsMsg model.WSMessage
 	if err := json.Unmarshal(message, &wsMsg); err != nil {
 		sendError(client, "Invalid WS message format")
@@ -104,8 +105,10 @@ func sendPong(client *hub.Client) {
 */
 func handleChatTransferToHumanAgent(client *hub.Client, payload any) {
 	// 1. cheking the sos flag -> to processed // else duplicate request (done...)
+	fmt.Println("Transfer Chat : -> ", payload)
 	if !client.SosFlag {
 		client.SosFlag = true
+		client.Hub.SosStatus[client.CustomerPass.Id] = true
 		//todo : need to mark all active device true....
 		//---->>>><<<<<_______>>>><<<<<<<<<<<<OOOOOOOOOO
 		//-> step1-> creating conversation payload
@@ -136,14 +139,20 @@ func handleChatTransferToHumanAgent(client *hub.Client, payload any) {
 			for _, conn := range connList {
 				sendMessage(conn, "transfer_chat", conversation)
 			}
-			client.Hub.AddToPendingChat(client.CustomerPass.CompanyId, conversation)
 		}
+		fmt.Println("before insert ", len(client.Hub.PendingChatQueue[client.CustomerPass.CompanyId]))
+		fmt.Println("company id: ", client.CustomerPass.CompanyId)
+		client.Hub.AddToPendingChat(client.CustomerPass.CompanyId, conversation)
+		fmt.Println("after insert", len(client.Hub.PendingChatQueue[client.CustomerPass.CompanyId]))
+		fmt.Println("company id: ", client.CustomerPass.CompanyId)
+
 	} else {
 		duplicateMsgPayload := model.MsgInOut{
 			SenderType: "system",
 			SenderId:   "system",
 			Content:    "duplicate request",
 		}
+		fmt.Println("before insert ", len(client.Hub.PendingChatQueue[client.CustomerPass.CompanyId]))
 		sendMessage(client, "pending", duplicateMsgPayload)
 	}
 }

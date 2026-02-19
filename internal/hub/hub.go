@@ -45,6 +45,8 @@ type Hub struct {
 
 	CustomerEventQueue map[string][]any
 
+	//sos status
+	SosStatus map[string]bool
 	//customer connection accept flag
 	AcceptedCustomers map[string]*model.HumanAgentPass
 	//thread safety
@@ -68,9 +70,8 @@ func NewHub() *Hub {
 		HumanAgentMessageQueue: make(map[string][]any),
 		CustomerMessageQueue:   make(map[string][]any),
 		CustomerEventQueue:     make(map[string][]any),
-
-		// accepted customers
-		AcceptedCustomers: make(map[string]*model.HumanAgentPass),
+		SosStatus:              make(map[string]bool),                  //---------------//sos status
+		AcceptedCustomers:      make(map[string]*model.HumanAgentPass), //accespted by human agents
 	}
 }
 
@@ -82,13 +83,21 @@ func (h *Hub) Run() {
 			if client.Type == "Human-Agent" {
 				h.humanAgents[client.HumanAgentPass.Id] = append(h.humanAgents[client.HumanAgentPass.Id], client)
 				h.registerAgent(client.HumanAgentPass)
+				fmt.Println("company id for agent: ", client.HumanAgentPass.CompanyId)
+				fmt.Println("pending list ", len(h.PendingChatQueue[client.HumanAgentPass.CompanyId]))
+				fmt.Println(len(h.PendingChatQueue))
+				for k, v := range h.PendingChatQueue {
+					fmt.Println(k, "<->", v)
+				}
 				go h.BroadcastPendingQueue(client.HumanAgentPass.CompanyId, client)
 				go h.BroadcastActiveChat(client.HumanAgentPass.Id)
-				go h.BroadcastHumanAgentMessages(client.HumanAgentPass.Id)
+				// go h.BroadcastHumanAgentMessages(client.HumanAgentPass.Id)
 			} else {
 				h.customers[client.CustomerPass.Id] = append(h.customers[client.CustomerPass.Id], client)
+				fmt.Println("company id for client: ", client.CustomerPass.CompanyId)
 				go h.CustomerMessageQueueBroadcast(client.CustomerPass.Id)
 				go h.BroadcastCustomerEventQueue(client.CustomerPass.Id)
+				fmt.Println(len(h.customers))
 			}
 			go h.printStats()
 			h.mu.Unlock()
@@ -288,8 +297,8 @@ func (h *Hub) RemoveFromPending(companyID, customerID string) {
 }
 
 func (h *Hub) RemoveFromPendingUnsafe(companyID, customerID string) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+	// h.mu.Lock()
+	// defer h.mu.Unlock()
 
 	pendingList := h.PendingChatQueue[companyID]
 
