@@ -349,7 +349,7 @@ func handleEndtheChat(client *hub.Client, payload any) {
 		log.Print("conversation construction err-> handle end chat:", err)
 	}
 	companyId := conversation.CompanyId
-	customerId := conversation.CustomerPayload.Id
+	customerId := conversation.CustomerPass.Id
 	humanAgentId := client.HumanAgentPass.Id
 	conversationId := conversation.Id
 	fmt.Println(companyId, customerId, humanAgentId, conversationId)
