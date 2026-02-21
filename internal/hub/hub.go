@@ -287,16 +287,16 @@ func (h *Hub) AddToPendingChat(companyID string, conv model.ConversationPayload)
 	h.PendingChatQueue[companyID][conv.Id] = conv
 }
 
-func (h *Hub) FindFromPendingChat(companyID string, conversationID string) bool {
+func (h *Hub) FindFromPendingChat(companyID string, conversationID string) (bool, model.ConversationPayload) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	if companyChats, ok := h.PendingChatQueue[companyID]; ok {
-		_, exists := companyChats[conversationID]
-		return exists
+		chat, exists := companyChats[conversationID]
+		return exists, chat
 	}
 
-	return false
+	return false, model.ConversationPayload{}
 }
 
 func (h *Hub) RemoveFromPending(companyID, conversationID string) {

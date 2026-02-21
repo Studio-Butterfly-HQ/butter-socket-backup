@@ -164,23 +164,33 @@ func handleChatTransferToHumanAgent(client *hub.Client, payload any) {
 // -> broadcast conversation to the human agent devices inbox
 // -> remove from pending list for all agents
 func handleHumanAcceptTheChat(client *hub.Client, payload any) {
+	fmt.Println("accept chat : ")
 	conversation, err := constructor.ConversationPayloadConstructor(payload, false)
+	fmt.Println("conversation:", conversation)
 	if err != nil {
 		fmt.Println("error decoding to byte: conversation payload")
 		sendMessage(client, "connection_event", err.Error())
 		return
 	}
+
 	customer := client.Hub.GetCustomerById(conversation.CustomerPass.Id)
 	if len(customer) != 0 && customer[0].FlagRevealed {
 		sendMessage(client, "accepted", "already connected")
 		return
 	}
-	if !client.Hub.FindFromPendingChat(client.HumanAgentPass.CompanyId, conversation.Id) {
+
+	exists, chat := client.Hub.FindFromPendingChat(client.HumanAgentPass.CompanyId, conversation.Id)
+	fmt.Println("pending chat: ", client.Hub.PendingChatQueue[client.HumanAgentPass.CompanyId])
+	if !exists {
 		fmt.Println("error decoding to byte: Conversation doesn't exist")
 		sendMessage(client, "connection_event", "conversation doesn't exist")
 		return
 	}
-
+	if chat.CustomerPass.Id != conversation.CustomerPass.Id {
+		fmt.Println("invalid request: conversation id doesn't belong to this user")
+		sendMessage(client, "connection_event", "conversation id doesn't belong to this user")
+		return
+	}
 	//update the assigned person to self....
 	conversation.AssignedTo = &model.AssignedTo{
 		Id: client.HumanAgentPass.Id,
