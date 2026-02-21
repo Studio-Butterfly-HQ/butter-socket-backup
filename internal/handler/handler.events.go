@@ -365,10 +365,18 @@ func handleEndtheChat(client *hub.Client, payload any) {
 	conversationId := conversation.Id
 	fmt.Println(companyId, customerId, humanAgentId, conversationId)
 	customer := client.Hub.GetCustomerById(customerId)
+
+	client.Hub.UnMarkCustomerAccepted(customerId)
+	client.Hub.RemoveFromActiveChat(humanAgentId, customerId)
+	
 	for _, v := range customer {
 		v.FlagRevealed = false
 		v.SosFlag = false
 		v.HumanAgentPass = nil
 		sendMessage(v, "end_chat", "conversation ended")
+	}
+	agents := client.Hub.GetHumanAgentById(client.HumanAgentPass.Id)
+	for _, v := range agents {
+		sendMessage(v, "end_chat", conversation)
 	}
 }

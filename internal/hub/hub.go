@@ -350,7 +350,7 @@ func (h *Hub) MarkCustomerAccepted(customerID string, agent *model.HumanAgentPas
 
 	h.AcceptedCustomers[customerID] = agent
 }
-func (h *Hub) UnMarkCustomerAccepted(customerID string, agent *model.HumanAgentPass) {
+func (h *Hub) UnMarkCustomerAccepted(customerID string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
