@@ -32,12 +32,12 @@ type HumanAgentPass struct {
 */
 
 type CustomerPass struct {
-	Id         string
-	Name       string
-	ProfileUri string
-	Contact    string
-	Source     string
-	CompanyId  string
+	Id        string `json:"id"`
+	Name      string `json:"name"`
+	Picture   string `json:"picture"`
+	Contact   string `json:"contact"`
+	Source    string `json:"source"`
+	CompanyId string `json:"company_id"`
 }
 
 type GuestPass struct {
