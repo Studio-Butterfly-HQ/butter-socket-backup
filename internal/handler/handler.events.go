@@ -363,12 +363,13 @@ func handleEndtheChat(client *hub.Client, payload any) {
 	customerId := conversation.CustomerPass.Id
 	humanAgentId := client.HumanAgentPass.Id
 	conversationId := conversation.Id
+	conversation.Status = "Complete"
 	fmt.Println(companyId, customerId, humanAgentId, conversationId)
 	customer := client.Hub.GetCustomerById(customerId)
 
 	client.Hub.UnMarkCustomerAccepted(customerId)
 	client.Hub.RemoveFromActiveChat(humanAgentId, customerId)
-	
+
 	for _, v := range customer {
 		v.FlagRevealed = false
 		v.SosFlag = false

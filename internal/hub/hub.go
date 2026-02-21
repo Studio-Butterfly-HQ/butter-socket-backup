@@ -221,6 +221,14 @@ func (h *Hub) GetHumanAgents() []*Client {
 	return list
 }
 
+//	func (h *Hub) GetHumanAgentsByCompany(companyId string) []*Client {
+//		var list []*Client
+//		for _, v := range h.humanAgents[companyId] {
+//			list = append(list, v...)
+//		}
+//		return list
+//	}
+
 func (h *Hub) GetCustomers() []*Client {
 	var list []*Client
 	for _, v := range h.customers {
