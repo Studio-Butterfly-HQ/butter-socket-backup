@@ -168,6 +168,7 @@ func handleHumanAcceptTheChat(client *hub.Client, payload any) {
 	if err != nil {
 		fmt.Println("error decoding to byte: conversation payload")
 		sendMessage(client, "connection_event", err.Error())
+		return
 	}
 	customer := client.Hub.GetCustomerById(conversation.CustomerPass.Id)
 	if len(customer) != 0 && customer[0].FlagRevealed {
