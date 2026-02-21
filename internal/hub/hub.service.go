@@ -85,28 +85,18 @@ func (h *Hub) BroadcastPendingQueue(companyID string, client *Client) {
 		return
 	}
 
-	for _, message := range queue {
-		msg, err := json.Marshal(message)
+	for _, conversation := range queue {
+		wsMsg := h.wsMessageCreator("transfer_chat", conversation)
+		msgBytes, err := json.Marshal(wsMsg)
 		if err != nil {
 			fmt.Println("Error marshaling pending queue:", err)
-			return
+			continue
 		}
 		select {
-		case client.Send <- msg:
+		case client.Send <- msgBytes:
 		default:
 			fmt.Println("Agent send channel is full")
 		}
-
-		// for agentID, devices := range h.humanAgents {
-		// 	fmt.Println("Broadcasting pending queue to Agent Id:", agentID)
-		// 	for _, device := range devices {
-		// 		select {
-		// 		case device.Send <- msg:
-		// 		default:
-		// 			fmt.Println("Agent send channel full, skipping device")
-		// 		}
-		// 	}
-		// }
 	}
 }
 
