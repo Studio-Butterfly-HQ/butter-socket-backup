@@ -3,12 +3,13 @@ package constructor
 import (
 	"butter-time/internal/model"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-func ConversationPayloadConstructor(payload any, accept bool) (model.ConversationPayload, error) {
+func ConversationPayloadConstructor(payload any, transfer bool) (model.ConversationPayload, error) {
 	var conversation model.ConversationPayload
 	conversationByte, err := json.Marshal(payload)
 	if err != nil {
@@ -23,17 +24,21 @@ func ConversationPayloadConstructor(payload any, accept bool) (model.Conversatio
 	//required: companyid, customer id and info,last (1-n [1<n<50] customer message)
 	//next---->
 	//construction of conversation.....................|---:<)
-	if accept {
+	if transfer {
 		conversation.Id = uuid.New().String()
+		conversation.Status = "waiting"
+		conversation.Summary = "About tiny super processor"
+		conversation.Tags = []string{"innovation", "hardware"}
+		conversation.Department = &model.Department{
+			DepartmentName: "Team Alpha",
+			DepartmentID:   "1",
+		}
+		conversation.MetaData.CreatedAt = time.Stamp
+		conversation.MetaData.LastUpdated = time.Stamp
+	} else {
+		if conversation.Id == "" {
+			return model.ConversationPayload{}, errors.New("invalid payload: conversation id missing")
+		}
 	}
-	conversation.Status = "waiting"
-	conversation.Summary = "About tiny super processor"
-	conversation.Tags = []string{"innovation", "hardware"}
-	conversation.Department = &model.Department{
-		DepartmentName: "Team Alpha",
-		DepartmentID:   "1",
-	}
-	conversation.MetaData.CreatedAt = time.Stamp
-	conversation.MetaData.LastUpdated = time.Stamp
 	return conversation, nil
 }

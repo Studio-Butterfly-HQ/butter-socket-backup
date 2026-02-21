@@ -105,7 +105,7 @@ func sendPong(client *hub.Client) {
 */
 func handleChatTransferToHumanAgent(client *hub.Client, payload any) {
 	// 1. cheking the sos flag -> to processed // else duplicate request (done...)
-	fmt.Println("Transfer Chat : -> ", payload)
+	fmt.Println("Transfer Chat : -> ", payload) //need for transfer... (nothing)
 	if !client.SosFlag {
 		client.SosFlag = true
 		client.Hub.SosStatus[client.CustomerPass.Id] = true
@@ -113,8 +113,7 @@ func handleChatTransferToHumanAgent(client *hub.Client, payload any) {
 		//---->>>><<<<<_______>>>><<<<<<<<<<<<OOOOOOOOOO
 		//-> step1-> creating conversation payload
 		conversation, err := constructor.ConversationPayloadConstructor(payload, true)
-		conversation.CustomerPayload.Id = client.CustomerPass.Id
-		conversation.CustomerPayload.CompanyId = client.CustomerPass.CompanyId
+		conversation.CustomerPass = client.CustomerPass
 		connList := client.Hub.GetHumanAgents() //<- all active agents (done without company isolation)
 		if len(connList) == 0 {
 			// no one is available : notify the customer (done...)
@@ -149,7 +148,7 @@ func handleChatTransferToHumanAgent(client *hub.Client, payload any) {
 	} else {
 		duplicateMsgPayload := model.MsgInOut{
 			SenderType: "system",
-			SenderId:   "system",
+			SenderId:   "butter-chat",
 			Content:    "duplicate request",
 		}
 		fmt.Println("before insert ", len(client.Hub.PendingChatQueue[client.CustomerPass.CompanyId]))
@@ -168,8 +167,19 @@ func handleHumanAcceptTheChat(client *hub.Client, payload any) {
 	conversation, err := constructor.ConversationPayloadConstructor(payload, false)
 	if err != nil {
 		fmt.Println("error decoding to byte: conversation payload")
-		sendMessage(client, "connection_event", "server error")
+		sendMessage(client, "connection_event", err.Error())
 	}
+	customer := client.Hub.GetCustomerById(conversation.CustomerPass.Id)
+	if len(customer) != 0 && customer[0].FlagRevealed {
+		sendMessage(client, "accepted", "already connected")
+		return
+	}
+	if !client.Hub.FindFromPendingChat(client.HumanAgentPass.CompanyId, conversation.Id) {
+		fmt.Println("error decoding to byte: Conversation doesn't exist")
+		sendMessage(client, "connection_event", "conversation doesn't exist")
+		return
+	}
+
 	//update the assigned person to self....
 	conversation.AssignedTo = &model.AssignedTo{
 		Id: client.HumanAgentPass.Id,
@@ -182,7 +192,7 @@ func handleHumanAcceptTheChat(client *hub.Client, payload any) {
 	AgentPassSeal := client.HumanAgentPass
 	AgentPassSeal.ConversationSeal = conversation.Id
 	client.Hub.MarkCustomerAccepted(
-		conversation.CustomerPayload.Id,
+		conversation.CustomerPass.Id,
 		AgentPassSeal,
 	)
 	//push to the queue for this agent list of map:
@@ -193,7 +203,7 @@ func handleHumanAcceptTheChat(client *hub.Client, payload any) {
 	//todo: remove from pending list of all devices of this company - (*department*):
 	client.Hub.RemoveFromPending(
 		client.HumanAgentPass.CompanyId,
-		conversation.CustomerPayload.Id,
+		conversation.Id,
 	)
 	//----------------------------------------
 	//--->> broadcast the inbox to all devices of the Human Agent
@@ -204,37 +214,22 @@ func handleHumanAcceptTheChat(client *hub.Client, payload any) {
 		sendMessage(agent, "accept_chat", conversation)
 	}
 	//send the accept flag to the customer....
-	customer := client.Hub.GetCustomerById(conversation.CustomerPayload.Id)
-	fmt.Println(customer)
-	if len(customer) == 0 {
-		msg := model.WSMessage{
-			Type:    "accepted",
-			Payload: "connected to human",
-		}
-		client.Hub.AddEventToCustomerEventQueue(conversation.CustomerPayload.Id, msg)
-		sendMessage(client, "customer_offline", "customer offline...")
-		return
-	}
-	if len(customer) != 0 && customer[0].FlagRevealed {
-		sendMessage(client, "accepted", "already connected")
-		return
-	}
-	fmt.Println(conversation)
-	if conversation.CustomerPayload.Id == "" {
-		sendError(client, "invalid payload")
-		return
-	}
 	msg := model.WSMessage{
 		Type:    "accepted",
 		Payload: "connected to human",
 	}
-	client.Hub.AddEventToCustomerEventQueue(conversation.CustomerPayload.Id, msg)
+	if len(customer) == 0 {
+		client.Hub.AddEventToCustomerEventQueue(conversation.CustomerPass.Id, msg)
+		sendMessage(client, "customer_offline", "customer offline...")
+		return
+	}
+	client.Hub.AddEventToCustomerEventQueue(conversation.CustomerPass.Id, msg)
 	for _, v := range customer {
 		v.FlagRevealed = true
 		v.HumanAgentPass = &model.HumanAgentPass{
-			Id: client.HumanAgentPass.Id,
-			// CompanyId:   client.HumanAgentPass.CompanyId,
-			// Departments: client.HumanAgentPass.Departments,
+			Id:               client.HumanAgentPass.Id,
+			CompanyId:        client.HumanAgentPass.CompanyId,
+			Departments:      client.HumanAgentPass.Departments,
 			ConversationSeal: conversation.Id,
 		}
 		sendMessage(v, "connection_stablished", "connection request accepted")

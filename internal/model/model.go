@@ -22,9 +22,22 @@ type HumanAgentPass struct {
 	ConversationSeal string //used for assigning self for a customer
 }
 
+/*
+   "id": "69aa58be-a4c9-4b8f-9fcb-2aa2d88d498c",
+   "company_id": "1482a2d3-cb9e-4074-867d-df7cef2861d3",
+   "name": "Sakura Haruno",
+   "profile_uri": null,
+   "contact": "sakura@gmail.com",
+   "source": "WEB",
+*/
+
 type CustomerPass struct {
-	Id        string
-	CompanyId string
+	Id         string
+	Name       string
+	ProfileUri string
+	Contact    string
+	Source     string
+	CompanyId  string
 }
 
 type GuestPass struct {
@@ -70,25 +83,25 @@ type MsgInOut struct {
 }
 
 // payload for -> trigger: transfer_chat ////payload for -> trigger: accept_chat//payload for -> trigger: accept_chat
-type CustomerPayload struct {
-	Id        string `json:"id"`
-	Name      string `json:"name"`
-	Picture   string `json:"picture"`
-	Contact   string `json:"contact"`
-	Source    string `json:"source"`
-	CompanyId string `json:"company_id"`
-}
+// type CustomerPayload struct {
+// 	Id        string `json:"id"`
+// 	Name      string `json:"name"`
+// 	Picture   string `json:"picture"`
+// 	Contact   string `json:"contact"`
+// 	Source    string `json:"source"`
+// 	CompanyId string `json:"company_id"`
+// }
 
 type ConversationPayload struct {
-	MetaData         `json:"metadata"`
-	Id               string `json:"id"`
-	Status           string `json:"status"`
-	*CustomerPayload `json:"customer"`
-	Summary          string   `json:"summary"`
-	Tags             []string `json:"tags"`
-	Messages         []string `json:"messages"`
-	*AssignedTo      `json:"assigned_to"`
-	*Department      `json:"department"`
+	MetaData      `json:"metadata"`
+	Id            string `json:"id"`
+	Status        string `json:"status"`
+	*CustomerPass `json:"customer"`
+	Summary       string   `json:"summary"`
+	Tags          []string `json:"tags"`
+	Messages      []string `json:"messages"`
+	*AssignedTo   `json:"assigned_to"`
+	*Department   `json:"department"`
 }
 
 type ExceptionPayload struct {
@@ -102,6 +115,7 @@ type TypingPayload struct {
 	Typing     bool   `json:"typing"`
 }
 
+// human agent
 type AssignedTo struct {
 	Id         string `json:"id"`
 	Name       string `json:"name"`

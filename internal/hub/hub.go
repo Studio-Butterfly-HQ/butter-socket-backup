@@ -34,7 +34,8 @@ type Hub struct {
 	company map[string]map[string]map[string]bool
 
 	//queues (pending messages (chat request list for company))
-	PendingChatQueue map[string][]any //for agents map(companyid,[request list]) // unassigned
+	//PendingChatQueue map[string][]any //for agents map(companyid,[request list]) // unassigned
+	PendingChatQueue map[string]map[string]model.ConversationPayload
 	//active queue
 	ActiveChatQueue map[string][]any //agents active chats //-> inbox in front end
 	//Human Agent queue
@@ -65,7 +66,7 @@ func NewHub() *Hub {
 		command:    make(chan string),
 
 		// queues
-		PendingChatQueue:       make(map[string][]any),
+		PendingChatQueue:       make(map[string]map[string]model.ConversationPayload),
 		ActiveChatQueue:        make(map[string][]any),
 		HumanAgentMessageQueue: make(map[string][]any),
 		CustomerMessageQueue:   make(map[string][]any),
@@ -261,63 +262,86 @@ func (h *Hub) ShowCustomers() {
 }
 
 // AddToPendingChat safely adds a conversation to the pending chat queue for a company
-func (h *Hub) AddToPendingChat(companyID string, conversation any) {
+// func (h *Hub) AddToPendingChat(companyID string, conversation any) {
+// 	h.mu.Lock()
+// 	defer h.mu.Unlock()
+
+//		if h.PendingChatQueue == nil {
+//			h.PendingChatQueue = make(map[string]map[string]model.ConversationPayload)
+//		}
+//		wsMsgPayload := h.wsMessageCreator("transfer_chat", conversation)
+//		h.PendingChatQueue[companyID] = append(h.PendingChatQueue[companyID], wsMsgPayload)
+//	}
+func (h *Hub) AddToPendingChat(companyID string, conv model.ConversationPayload) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	if h.PendingChatQueue == nil {
-		h.PendingChatQueue = make(map[string][]any)
+		h.PendingChatQueue = make(map[string]map[string]model.ConversationPayload)
 	}
-	wsMsgPayload := h.wsMessageCreator("transfer_chat", conversation)
-	h.PendingChatQueue[companyID] = append(h.PendingChatQueue[companyID], wsMsgPayload)
+
+	if h.PendingChatQueue[companyID] == nil {
+		h.PendingChatQueue[companyID] = make(map[string]model.ConversationPayload)
+	}
+
+	h.PendingChatQueue[companyID][conv.Id] = conv
 }
 
-func (h *Hub) RemoveFromPending(companyID, customerID string) {
+func (h *Hub) FindFromPendingChat(companyID string, conversationID string) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	pendingList := h.PendingChatQueue[companyID]
-
-	var updatedList []any
-
-	for _, item := range pendingList {
-		wsMsg, ok := item.(*model.WSMessage)
-		if !ok {
-			continue
-		}
-
-		conv := wsMsg.Payload.(*model.ConversationPayload)
-
-		if conv.CustomerPayload.Id != customerID {
-			updatedList = append(updatedList, conv)
-		}
+	if companyChats, ok := h.PendingChatQueue[companyID]; ok {
+		_, exists := companyChats[conversationID]
+		return exists
 	}
 
-	h.PendingChatQueue[companyID] = updatedList
+	return false
 }
 
-func (h *Hub) RemoveFromPendingUnsafe(companyID, customerID string) {
-	// h.mu.Lock()
-	// defer h.mu.Unlock()
+func (h *Hub) RemoveFromPending(companyID, conversationID string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
-	pendingList := h.PendingChatQueue[companyID]
+	if companyChats, ok := h.PendingChatQueue[companyID]; ok {
+		delete(companyChats, conversationID)
 
-	var updatedList []any
-
-	for _, item := range pendingList {
-		wsMsg, ok := item.(*model.WSMessage)
-		if !ok {
-			continue
+		// optional cleanup if empty
+		if len(companyChats) == 0 {
+			delete(h.PendingChatQueue, companyID)
 		}
+	}
+}
 
-		conv := wsMsg.Payload.(*model.ConversationPayload)
+func (h *Hub) RemoveFromPendingByCustomer(companyID, customerID string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
-		if conv.CustomerPayload.Id != customerID {
-			updatedList = append(updatedList, conv)
+	companyChats, ok := h.PendingChatQueue[companyID]
+	if !ok {
+		return
+	}
+
+	for convID, conv := range companyChats {
+		if conv.CustomerPass.Id == customerID {
+			delete(companyChats, convID)
 		}
 	}
 
-	h.PendingChatQueue[companyID] = updatedList
+	if len(companyChats) == 0 {
+		delete(h.PendingChatQueue, companyID)
+	}
+}
+
+func (h *Hub) RemoveFromPendingUnsafe(companyID, conversationID string) {
+
+	if companyChats, ok := h.PendingChatQueue[companyID]; ok {
+		delete(companyChats, conversationID)
+
+		if len(companyChats) == 0 {
+			delete(h.PendingChatQueue, companyID)
+		}
+	}
 }
 
 func (h *Hub) MarkCustomerAccepted(customerID string, agent *model.HumanAgentPass) {
@@ -392,7 +416,7 @@ func (h *Hub) RemoveFromActiveChat(agentID string, customerID string) error {
 	for _, item := range queue {
 		if wsMsg, ok := item.(model.WSMessage); ok {
 			if conversation, ok := wsMsg.Payload.(model.ConversationPayload); ok {
-				if conversation.CustomerPayload != nil && conversation.CustomerPayload.Id != customerID {
+				if conversation.CustomerPass != nil && conversation.CustomerPass.Id != customerID {
 					newQueue = append(newQueue, item)
 				} else {
 					found = true
